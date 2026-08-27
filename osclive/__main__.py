@@ -8,20 +8,34 @@ from .handler import SLClientHandler
 
 
 def main() -> None:
-    argp = argparse.ArgumentParser(prog='osclive', description='Python OSC server for remote control of the PreSonus StudioLive mixer')
-    argp.add_argument("-u", "--uc", help="Connect to the host running Universal Control application", metavar='HOST')
-    argp.add_argument("-c", "--config", help="Load YAML configuration file", metavar='CFG')
-    argp.add_argument("-d", "--debug", help="Print debug informations", action='store_true')
+    argp = argparse.ArgumentParser(
+        prog="osclive",
+        description="Python OSC server for remote control of the PreSonus StudioLive mixer",
+    )
+    argp.add_argument(
+        "-u",
+        "--uc",
+        help="Connect to the host running Universal Control application",
+        metavar="HOST",
+    )
+    argp.add_argument(
+        "-c", "--config", help="Load YAML configuration file", metavar="CFG"
+    )
+    argp.add_argument(
+        "-d", "--debug", help="Print debug informations", action="store_true"
+    )
     argp.add_argument("-m", "--midi", help="Use midi port instead of IEEE1394")
     args = argp.parse_args()
 
     slbackend: studiolive.SLBackend
     if args.uc:
         from .studiolive.ucbackend import SLUcBackend
+
         slbackend = SLUcBackend(studiolive.StudioLive1602.uc, args.uc)
     else:
         from .studiolive.rawbackend import SLRawBackend
-        slbackend = SLRawBackend(studiolive.StudioLive1602.raw, args.midi)
+
+        slbackend = SLRawBackend(studiolive.StudioLive2442, args.midi)
 
     slbackend.debug = args.debug
     sl = studiolive.SLRemote(slbackend, args.debug)
@@ -32,6 +46,7 @@ def main() -> None:
 
     if args.config:
         import yaml
+
         cfg = yaml.safe_load(open(args.config).read())
         if cfg.get("studiolive"):
             cfg_sl = cfg.get("studiolive")

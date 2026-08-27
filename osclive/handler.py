@@ -23,7 +23,8 @@ class SLClientHandler(DispatchedOSCRequestHandler):
         self.inputs = [n for n in channels if re.match("^ch", n)]
         self.auxs = [n for n in channels if re.match("^aux", n)]
         self.fxs = [n for n in channels if re.match("^fx[a-z]", n)]
-        self.all_channels = self.inputs + self.auxs + self.fxs + ["main"]
+        self.subs = [n for n in channels if re.match("^sub", n)]
+        self.all_channels = self.inputs + self.auxs + self.fxs + self.subs + ["main"]
 
         self.peaks: dict[str, float] = {ch: 0 for ch in self.all_channels}
 
@@ -47,22 +48,47 @@ class SLClientHandler(DispatchedOSCRequestHandler):
     def init_dispatcher(self) -> None:
         for channel in self.all_channels:
             for control in self.channel_ctrls:
-                self.map(f"/channel/{channel}/{control}", self.channel_control_handler, channel, control)
+                self.map(
+                    f"/channel/{channel}/{control}",
+                    self.channel_control_handler,
+                    channel,
+                    control,
+                )
 
             for control in ["panreset", "peak_reset"]:
-                self.map(f"/channel/{channel}/{control}", self.channel_control_extra_handler, channel, control)
+                self.map(
+                    f"/channel/{channel}/{control}",
+                    self.channel_control_extra_handler,
+                    channel,
+                    control,
+                )
 
         ch = "geq0"
         if ch in self.sl.channels:
             freqs = self._get_freqs(ch)
             for i in range(len(freqs)):
-                self.map("/channel/%s/%d" % (ch, i + 1), self.channel_control_handler, ch, freqs[i])
+                self.map(
+                    "/channel/%s/%d" % (ch, i + 1),
+                    self.channel_control_handler,
+                    ch,
+                    freqs[i],
+                )
             for ctrl in ["enable"]:
-                self.map("/channel/%s/%s" % (ch, ctrl), self.channel_control_handler, ch, ctrl)
+                self.map(
+                    "/channel/%s/%s" % (ch, ctrl),
+                    self.channel_control_handler,
+                    ch,
+                    ctrl,
+                )
             for ctrl in ["reset"]:
-                self.map("/channel/%s/%s" % (ch, ctrl), self.channel_control_extra_handler, ch, ctrl)
+                self.map(
+                    "/channel/%s/%s" % (ch, ctrl),
+                    self.channel_control_extra_handler,
+                    ch,
+                    ctrl,
+                )
         # TODO
-        #for i in ["fx0"]:
+        # for i in ["fx0"]:
         #    for ctrl in ["param%d"%i for i in range(6)]:
         #        self.map("/fx/%s"%(ctrl), self.common_channel_handler, i, ctrl)
 
@@ -86,8 +112,8 @@ class SLClientHandler(DispatchedOSCRequestHandler):
             self.send_message("/channel/%s/label" % ch, name)
 
         for i, (ch, name) in enumerate(self.aux_names.items(), 1):
-            self.send_message("/channel/%s/label" % ch , name)
-        self.send_message("/channel/main/label", 'Main')
+            self.send_message("/channel/%s/label" % ch, name)
+        self.send_message("/channel/main/label", "Main")
 
         ch = "geq0"
         if ch in self.sl.channels:
@@ -127,12 +153,12 @@ class SLClientHandler(DispatchedOSCRequestHandler):
                 self.send_message("/channel/%s/level" % ch, int(value * 16))
 
     def sl_control_handler(self, channel: str, ctrl: str, value: float) -> None:
-        #print("SL Control handler, channel %s, ctrl %s" %( channel, ctrl))
+        # print("SL Control handler, channel %s, ctrl %s" %( channel, ctrl))
         all_channels = self.inputs + self.auxs + self.fxs + ["main"]
         if channel in all_channels:
             self.send_message("/channel/%s/%s" % (channel, ctrl), value)
 
-#        # PAGE "Equalizer"
+        #        # PAGE "Equalizer"
         if channel == "geq0":
             f = list(self.sl.channels["geq0"].ctrls.keys())
             index = f.index(ctrl) - f.index("20Hz")
@@ -141,15 +167,18 @@ class SLClientHandler(DispatchedOSCRequestHandler):
                 self.send_message("/channel/%s/%d" % (channel, index + 1), value)
             if ctrl in ["enable"]:
                 self.send_message("/channel/%s/%s" % (channel, ctrl), value)
-#
-#        if channel == "fx0":
-#            self.send_message("/fx/%s" % ctrl, value)
+
+    #
+    #        if channel == "fx0":
+    #            self.send_message("/fx/%s" % ctrl, value)
 
     def channel_control_handler(self, addr: str, args: list[Any], value: float) -> None:
         ch, ctrl = args[:2]
         self.sl.set_control(ch, ctrl, value)
 
-    def channel_control_extra_handler(self, addr: str, args: list[Any], value: OscValue) -> None:
+    def channel_control_extra_handler(
+        self, addr: str, args: list[Any], value: OscValue
+    ) -> None:
         ch, ctrl = args[:2]
         if ctrl == "panreset":
             self.sl.set_control(ch, "pan", 0.5)
